@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Top 20 Target Ultimate Parents for Sale: Distribution of Active Child Keys in Canada</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      #sid {
+        position: fixed;
+        top: 3px;
+        left: 5px;
+        font-size: 18px;
+        border-radius: 5px;
+        display: none;
+      }
+      #excel-file {
+        position: fixed;
+        top: 45%;
+        left: 45%;
+        font-size: 18px;
+        border-radius: 5px;
+        z-index: 999;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Excel file select & input -->
+    <select id="sid" onchange="select()"></select>
+    <input type="file" id="excel-file" />
+    <!-- echarts visualization div -->
+    <div
+      id="main"
+      style="width: 94%; height: 95vh; margin: 30px auto 0 auto"
+    ></div>
+
+    <!-- import echarts.js -->
+    <script src="./js/echarts.js"></script>
+    <!-- import GeoJSON for Canada base map -->
+    <script src="./js/canada.js"></script>
+    <!-- import helper js files -->
+    <script src="./js/jquery-3.6.0.min.js"></script>
+    <script src="./js/xlsx.core.min.js"></script>
+    <script>
+      //timeID
+      var timeID = null;
+      //to store the distribution data for data viz for the top 20 target companies
+      var companyData = [];
+      //province names
+      var provinces = [
+        "Alberta",
+        "British Columbia",
+        "Manitoba",
+        "New Brunswick",
+        "Nova Scotia",
+        "Northwest Territories",
+        "Nunavut",
+        "Ontario",
+        "Prince Edward Island",
+        "Quebec",
+        "Saskatchewan",
+        "Yukon",
+        "Newfoundland and Labrador",
+      ];
+      // register the Canadian map
+      echarts.registerMap("Canada", canadaJson);
+      // initialize echarts
+      var myEcharts = echarts.init(document.getElementById("main"));
+      // excel reading
+      $("#excel-file").change(function (e) {
+        var files = e.target.files;
+        var fileReader = new FileReader();
+        fileReader.onload = function (ev) {
+          try {
+            var data = ev.target.result;
+            var workbook = XLSX.read(data, {
+              type: "binary",
+            }); // read & store
+            var rows = []; // store the rows
+          } catch (e) {
+            console.log("incorrect format");
+            return;
+          }
+          
+          var fromTo = "";
+          // read the sheets in excel
+          for (var sheet in workbook.Sheets) {
+            if (workbook.Sheets.hasOwnProperty(sheet)) {
+              fromTo = workbook.Sheets[sheet]["!ref"];
+              console.log(fromTo);
+              rows = rows.concat(
+                XLSX.utils.sheet_to_json(workbook.Sheets[sheet])
+              );
+              // only read Sheet 1
+              break;
+            }
+          }
+          // read only the first 20 rows in excel
+          for (let i = 0; i < 20; i++) {
+            //in the drop down menu, display the order, parent name & ult_par_key
+            $("#sid").append(
+              new Option(
+                i +
+                  1 +
+                  "." +
+                  rows[i]["root_company"] +
+                  "(" +
+                  rows[i]["ult_par_key"] +
+                  ")",
+                i
+              )
+            );
+            //store the counts in these provinces
+            let temp = [];
+            for (let j = 0; j < provinces.length; j++) {
+              temp.push({
+                name: provinces[j],
+                value: parseInt(rows[i][provinces[j]]),
+              });
+            }
+            //sort the counts of active key locations in each province/territories
+            temp.sort(function (a, b) {
+              return a.value - b.value;
+            });
+            companyData.push(temp);
+          }
+          //then hide the file choosing section & show the drop down
+          $("#excel-file").hide();
+          $("#sid").show();
+          draw(0);
+        };
+        // read file
+        fileReader.readAsBinaryString(files[0]);
+      });
+
+      //draw based on echarts example codes
+      // PART 1: map
+      function draw(index) {
+        let mapOption = {
+          //color
+          visualMap: {
+            left: "right",
+            min: 0,
+            max: 100,
+            // 数量映射出来的颜色
+            inRange: {
+              color: [
+                "#F7FAFF",
+                "#609BEE",
+                "#4C8AE1",
+                "#3068B7",
+                "#1A4C94",
+                "#032656",
+              ],
+            },
+            text: ["High", "Low"],
+            calculable: true,
+          },
+          series: [
+            {
+              id: "population",
+              type: "map",
+              roam: true,
+              map: "Canada",
+              animationDurationUpdate: 1000,
+              universalTransition: true,
+              data: companyData[index],
+            },
+          ],
+        };
+        // Part 2: bar chart
+        let barOption = {
+          xAxis: {
+            type: "value",
+          },
+          yAxis: {
+            type: "category",
+            axisLabel: {
+              rotate: 30,
+            },
+            data: companyData[index].map(function (item) {
+              return item.name;
+            }),
+          },
+          //the animation time in between the 2 charts
+          animationDurationUpdate: 1000,
+          series: {
+            type: "bar",
+            id: "population",
+            data: companyData[index].map(function (item) {
+              return item.value;
+            }),
+            universalTransition: true,
+          },
+        };
+        // record the curretn viz option
+        let currentOption = mapOption;
+        // display it
+        myEcharts.setOption(mapOption);
+        // set 3000ms between automatically changing between bar & mao
+        timeID = setInterval(function () {
+          currentOption = currentOption === mapOption ? barOption : mapOption;
+          myEcharts.setOption(currentOption, true);
+        }, 3000);
+      }
+
+      // change to a different ultimate parent key
+      function select() {
+        myEcharts.clear();
+        //clear the timer
+        if (timeID != null) {
+          clearInterval(timeID);
+        }
+        //change the ultimate parent for display
+        draw(document.getElementById("sid").value);
+      }
+    </script>
+  </body>
+</html>
